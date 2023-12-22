@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Products</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #app {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #f7f7f7;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        input[type="file"] {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        select, button {
+            margin-top: 8px;
+        }
+
+        #columnSelectionBoxes {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        select {
+            width: 150px;
+            height: 70px;
+        }
+
+        button {
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 15px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            text-align: center;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <label for="fileInput">Choose a JSON file:</label>
+    <input type="file" id="fileInput" onchange="readFile()" accept=".json" />
+
+    <label for="categoryFilter">Filter by Category:</label>
+    <select id="categoryFilter" onchange="filterTable()">
+        <option value="">All</option>
+    </select>
+
+    <div id="columnSelectionBoxes">
+        <select id="allColumns" multiple size="5"></select>
+        <div>
+            <button onclick="moveSelectedColumns('right')">>></button>
+            <button onclick="moveSelectedColumns('left')"><<</button>
+        </div>
+        <select id="selectedColumns" multiple size="5"></select>
+    </div>
+
+    <label for="sortSelect">Sort By:</label>
+    <select id="sortSelect" onchange="sortTable()">
+        <option value="price">Price</option>
+        <option value="popularity">Popularity</option>
+    </select>
+
+    <label for="sortOrder">Sort Order:</label>
+    <select id="sortOrder" onchange="sortTable()">
+        <option value="asc">Ascending</option>
+        <option value="desc">Descending</option>
+    </select>
+
+    <table id="dataTable">
+        <thead id="columnHeaders"></thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+let jsonData;
+
+function readFile() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+
+    if (file) {
+        const reader = new FileReader();
+
+        reader.onload = function (event) {
+            const fileContents = event.target.result;
+            try {
+                jsonData = JSON.parse(fileContents);
+                populateCategoryFilter();
+                populateColumnsSelect();
+                displayTable();
+            } catch (error) {
+                console.error('Error parsing JSON:', error);
+            }
+        };
+
+        reader.readAsText(file);
+    }
+}
+
+function populateCategoryFilter() {
+    const categoryFilter = document.getElementById('categoryFilter');
+    categoryFilter.innerHTML = '<option value="">All</option>';
+
+    const categories = new Set();
+    for (const productId in jsonData.products) {
+        const product = jsonData.products[productId];
+        categories.add(product.subcategory);
+    }
+
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        categoryFilter.appendChild(option);
+    });
+}
+
+function populateColumnsSelect() {
+    const allColumnsSelect = document.getElementById('allColumns');
+    const sampleProduct = Object.values(jsonData.products)[0];
+    const columns = Object.keys(sampleProduct);
+
+    columns.forEach(column => {
+        const option = document.createElement('option');
+        option.value = column;
+        option.textContent = column;
+        allColumnsSelect.appendChild(option);
+    });
+}
+
+function moveSelectedColumns(direction) {
+    const allColumnsSelect = document.getElementById('allColumns');
+    const selectedColumnsSelect = document.getElementById('selectedColumns');
+
+    const sourceSelect = direction === 'right' ? allColumnsSelect : selectedColumnsSelect;
+    const destinationSelect = direction === 'right' ? selectedColumnsSelect : allColumnsSelect;
+
+    const selectedOptions = Array.from(sourceSelect.selectedOptions);
+
+    selectedOptions.forEach(option => {
+        // Check if the option already exists in the destination select
+        if (!destinationSelect.querySelector(`option[value="${option.value}"]`)) {
+            destinationSelect.appendChild(option.cloneNode(true));
+            sourceSelect.remove(option.index);
+        }
+    });
+
+    displayTable();
+}
+
+function filterTable() {
+    displayTable();
+}
+
+function displayTable() {
+    const categoryFilter = document.getElementById('categoryFilter');
+    const selectedCategory = categoryFilter.value;
+    const selectedColumnsSelect = document.getElementById('selectedColumns');
+    const selectedColumns = Array.from(selectedColumnsSelect.options).map(option => option.value);
+    const tableBody = document.getElementById('tableBody');
+    const columnHeadersRow = document.getElementById('columnHeaders');
+    tableBody.innerHTML = '';
+    columnHeadersRow.innerHTML = '';
+
+    for (const productId in jsonData.products) {
+        const product = jsonData.products[productId];
+
+        // Apply category filter
+        if (selectedCategory && product.subcategory !== selectedCategory) {
+            continue;
+        }
+
+        const tr = document.createElement('tr');
+
+        // Add Product ID as a cell
+        const productIdCell = document.createElement('td');
+        productIdCell.textContent = productId;
+        // tr.appendChild(productIdCell);
+
+        // Add other selected product details as cells
+        selectedColumns.forEach(column => {
+            const td = document.createElement('td');
+            td.textContent = product[column];
+            td.setAttribute('data-column', column);
+            tr.appendChild(td);
+        });
+
+        tableBody.appendChild(tr);
+    }
+
+    // Add column headers
+    const thRow = document.createElement('tr');
+    selectedColumns.forEach(column => {
+        const th = document.createElement('th');
+        th.textContent = column === 'id' ? 'ID' : column.toUpperCase(); // Adjusted to uppercase
+        th.setAttribute('data-column', column);
+        thRow.appendChild(th);
+    });
+
+    columnHeadersRow.appendChild(thRow);
+}
+
+function sortTable() {
+    const sortSelect = document.getElementById('sortSelect');
+    const sortOrderSelect = document.getElementById('sortOrder');
+    const sortBy = sortSelect.value;
+    const sortOrder = sortOrderSelect.value;
+    const tableBody = document.getElementById('tableBody');
+    const rows = Array.from(tableBody.getElementsByTagName('tr'));
+
+    rows.sort((a, b) => {
+        const aValue = a.querySelector(`td[data-column="${sortBy}"]`).textContent;
+        const bValue = b.querySelector(`td[data-column="${sortBy}"]`).textContent;
+
+        // Assuming numeric values for sorting
+        const result = parseFloat(aValue) - parseFloat(bValue);
+
+        return sortOrder === 'asc' ? result : -result;
+    });
+
+    tableBody.innerHTML = '';
+    rows.forEach(row => tableBody.appendChild(row));
+}
+</script>
+
+</body>
+</html>
